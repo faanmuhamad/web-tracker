@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Tracker Lamaran Kerja</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Tracker Lamaran Kerja</h1>
+      <p class="sub">Catat setiap lamaran, pantau tahapan interview, dan salin ke Google Sheets kapan saja.</p>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <div class="tabs" role="tablist">
+        <button class="tab" role="tab" id="tab-list" aria-selected="true">Daftar Lamaran</button>
+        <button class="tab" role="tab" id="tab-dash" aria-selected="false">Ringkasan</button>
+      </div>
+      <button class="btn" id="btn-theme" type="button" aria-label="Ganti tema">🌙 Gelap</button>
+    </div>
+  </header>
+
+  <div id="banner" class="banner" hidden></div>
+  <p class="note" id="storage-note">Data tersimpan di browser ini saja. Rutin klik <strong>Backup</strong> agar data aman jika cache browser dihapus atau pindah perangkat.</p>
+
+  <section id="view-list" style="display:flex;flex-direction:column;gap:12px">
+    <div class="toolbar">
+      <input id="q" class="field grow" type="search" placeholder="Cari perusahaan, jabatan, lokasi…">
+      <select id="f-status" class="field" aria-label="Filter status"></select>
+      <select id="f-sumber" class="field" aria-label="Filter sumber"></select>
+      <span class="spacer"></span>
+      <button class="btn" id="btn-csv" title="Bisa dibuka di Excel atau Google Sheets">Unduh CSV</button>
+      <button class="btn" id="btn-backup" title="Simpan semua data ke file .json">Backup</button>
+      <button class="btn" id="btn-restore" title="Muat data dari file backup .json">Pulihkan</button>
+      <input type="file" id="file-restore" accept=".json,application/json" hidden>
+      <button class="btn primary" id="btn-add">+ Tambah lamaran</button>
+    </div>
+    <div class="table-box">
+      <table>
+        <thead><tr>
+          <th>No</th><th>Tgl Lamar</th><th>Perusahaan</th><th>Jabatan</th><th>Status Pengajuan</th>
+          <th>Tahapan</th><th>Lokasi</th><th>Range Gaji</th><th>Ekspektasi</th><th>Sumber</th><th>Kontak HR</th><th>Follow-up</th>
+        </tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <div id="empty" class="empty" hidden></div>
+    </div>
+    <p class="note" id="count"></p>
+  </section>
+
+  <section id="view-dash" hidden style="flex-direction:column;gap:12px">
+    <div class="kpis" id="kpis"></div>
+    <div class="grid2">
+      <div class="panel"><h2>Per status pengajuan</h2><div id="bar-status"></div></div>
+      <div class="panel"><h2>Per sumber lowongan</h2><div id="bar-sumber"></div></div>
+      <div class="panel"><h2>Agenda mendatang</h2><ul class="agenda" id="agenda"></ul></div>
+      <div class="panel"><h2>Per tipe kerja</h2><div id="bar-tipe"></div></div>
+    </div>
+  </section>
+</div>
+
+<dialog id="dlg">
+  <form class="dlg" id="form" method="dialog">
+    <div class="dlg-head"><h2 id="dlg-title">Tambah lamaran</h2><button type="button" class="btn" id="btn-close" aria-label="Tutup">Tutup</button></div>
+    <div class="dlg-body">
+      <fieldset><legend>Lowongan</legend>
+        <label>Perusahaan<input class="field" id="i-perusahaan" required></label>
+        <label>Jabatan / Posisi<input class="field" id="i-jabatan" required></label>
+        <label>Level jabatan<select class="field" id="i-level"></select></label>
+        <label>Status pengajuan<select class="field" id="i-status"></select></label>
+        <label>Tanggal lamar<input class="field" type="date" id="i-tanggalLamar"></label>
+        <label>Tanggal follow-up<input class="field" type="date" id="i-followUp"></label>
+        <label class="wide">Link lowongan<input class="field" type="url" id="i-link" placeholder="https://"></label>
+      </fieldset>
+      <fieldset><legend>Gaji &amp; lokasi</legend>
+        <label>Range gaji min (Rp)<input class="field mono" inputmode="numeric" id="i-gajiMin" placeholder="8000000"></label>
+        <label>Range gaji maks (Rp)<input class="field mono" inputmode="numeric" id="i-gajiMax" placeholder="12000000"></label>
+        <label>Ekspektasi gaji (Rp)<input class="field mono" inputmode="numeric" id="i-ekspektasi" placeholder="10000000"></label>
+        <label>Lokasi<input class="field" id="i-lokasi" placeholder="Jakarta Selatan"></label>
+        <label>Tipe kerja<select class="field" id="i-tipeKerja"></select></label>
+      </fieldset>
+      <fieldset><legend>Kontak &amp; sumber</legend>
+        <label>Sumber lowongan<select class="field" id="i-sumber"></select></label>
+        <label>Nama HR / recruiter<input class="field" id="i-kontakNama"></label>
+        <label>Email HR<input class="field" type="email" id="i-kontakEmail"></label>
+        <label>No. telepon / WA<input class="field" id="i-kontakTelp"></label>
+      </fieldset>
+      <div><legend style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:.07em;font-weight:700;color:var(--accent);margin-bottom:8px">Tahapan interview</legend>
+        <div class="stages" id="stages"></div>
+      </div>
+      <fieldset><legend>Catatan</legend>
+        <label class="wide"><span class="sr" hidden>Catatan</span><textarea class="field" id="i-catatan" rows="3" placeholder="Pertanyaan interview, benefit, kesan, dll."></textarea></label>
+      </fieldset>
+    </div>
+    <div class="dlg-foot">
+      <button type="button" class="btn danger" id="btn-del" hidden>Hapus</button>
+      <span class="spacer"></span>
+      <button type="button" class="btn" id="btn-cancel">Batal</button>
+      <button type="submit" class="btn primary" id="btn-save">Simpan</button>
+    </div>
+  </form>
+</dialog>
+
+<div class="toast" id="toast" hidden></div>
+
+<script>
+const STATUS = [
+  {v:"Draft",c:"s-draft"},{v:"Terkirim",c:"s-sent"},{v:"Screening",c:"s-proc"},{v:"Tes / Psikotes",c:"s-proc"},
+  {v:"Interview",c:"s-proc"},{v:"Offering",c:"s-offer"},{v:"Diterima",c:"s-ok"},{v:"Ditolak",c:"s-bad"},
+  {v:"Tidak ada kabar",c:"s-draft"},{v:"Mundur",c:"s-draft"}
+];
+const ACTIVE = ["Terkirim","Screening","Tes / Psikotes","Interview","Offering"];
+const LEVEL = ["","Intern","Junior / Staff","Middle","Senior","Lead / Supervisor","Manager","Head / Director"];
+const TIPE = ["","WFO","Hybrid","Remote / WFH"];
+const SUMBER = ["","LinkedIn","JobStreet","Glints","Kalibrr","Indeed","Karir.com","Dealls","Website perusahaan","Referral","Lainnya"];
+const STAGES = [["screening","Screening CV"],["tes","Tes / Psikotes"],["hr","Interview HR"],["user","Interview User"],["offering","Offering"]];
+const HASIL = ["","Menunggu","Lolos","Gagal"];
+const FIELDS = ["perusahaan","jabatan","level","status","tanggalLamar","followUp","link","gajiMin","gajiMax","ekspektasi","lokasi","tipeKerja","sumber","kontakNama","kontakEmail","kontakTelp","catatan"];
+const NUMS = ["gajiMin","gajiMax","ekspektasi"];
+
+const $ = id => document.getElementById(id);
+let rows = [], editingId = null, canWrite = true;
+
+function opts(sel, list, first){ sel.innerHTML = (first!==undefined?`<option value="">${first}</option>`:"") + list.filter(x=>x!=="").map(v=>`<option>${esc(v)}</option>`).join(""); }
+function esc(s){ return String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+function rp(n){ if(n===null||n===undefined||n==="") return ""; const x=Number(n); if(!isFinite(x)) return ""; return x>=1e6 ? (x/1e6).toLocaleString("id-ID",{maximumFractionDigits:1})+" jt" : x.toLocaleString("id-ID"); }
+function rpFull(n){ return (n===null||n===undefined||n==="")?"":"Rp "+Number(n).toLocaleString("id-ID"); }
+function tgl(d){ if(!d) return ""; const [y,m,dd]=d.split("-"); return `${dd}/${m}/${y.slice(2)}`; }
+function today(){ const d=new Date(); return new Date(d.getTime()-d.getTimezoneOffset()*6e4).toISOString().slice(0,10); }
+function statusClass(v){ return (STATUS.find(s=>s.v===v)||STATUS[0]).c; }
+function toast(msg){ const t=$("toast"); t.textContent=msg; t.hidden=false; clearTimeout(toast._t); toast._t=setTimeout(()=>t.hidden=true,2200); }
+
+// --- init selects
+opts($("f-status"), STATUS.map(s=>s.v), "Semua status");
+opts($("f-sumber"), SUMBER, "Semua sumber");
+opts($("i-status"), STATUS.map(s=>s.v));
+opts($("i-level"), LEVEL, "—");
+opts($("i-tipeKerja"), TIPE, "—");
+opts($("i-sumber"), SUMBER, "—");
+$("stages").innerHTML = STAGES.map(([k,l])=>`<div class="stage"><span>${l}</span>
+  <input class="field" type="date" id="st-${k}-tanggal" aria-label="Tanggal ${l}">
+  <select class="field" id="st-${k}-hasil" aria-label="Hasil ${l}">${HASIL.map(h=>`<option value="${h}">${h||"— hasil —"}</option>`).join("")}</select></div>`).join("");
+
+// --- theme
+function applyTheme(t){
+  document.documentElement.setAttribute("data-theme", t);
+  $("btn-theme").textContent = t==="dark" ? "☀️ Terang" : "🌙 Gelap";
+}
+(function initTheme(){
+  let t="light";
+  try{ t=localStorage.getItem("theme")||"light"; }catch(e){}
+  applyTheme(t);
+})();
+$("btn-theme").onclick=()=>{
+  const next = document.documentElement.getAttribute("data-theme")==="dark" ? "light" : "dark";
+  applyTheme(next);
+  try{ localStorage.setItem("theme", next); }catch(e){}
+};
+
+// --- tabs
+function showTab(dash){
+  $("tab-list").setAttribute("aria-selected", !dash); $("tab-dash").setAttribute("aria-selected", dash);
+  $("view-list").hidden = dash; $("view-list").style.display = dash?"none":"flex";
+  $("view-dash").hidden = !dash; $("view-dash").style.display = dash?"flex":"none";
+  try{ localStorage.setItem("tab", dash?"dash":"list"); }catch(e){}
+  if(dash) renderDash();
+}
+$("tab-list").onclick=()=>showTab(false); $("tab-dash").onclick=()=>showTab(true);
+
+// --- render table
+function filtered(){
+  const q=$("q").value.trim().toLowerCase(), fs=$("f-status").value, fsu=$("f-sumber").value;
+  return rows.filter(r=>(!fs||r.status===fs)&&(!fsu||r.sumber===fsu)&&(!q||[r.perusahaan,r.jabatan,r.lokasi,r.kontakNama,r.catatan].join(" ").toLowerCase().includes(q)));
+}
+function lastStage(r){
+  let last=null; for(const [k,l] of STAGES){ const s=r.tahapan?.[k]; if(s&&(s.tanggal||s.hasil)) last={l,...s}; } return last;
+}
+function render(){
+  const list=filtered(), tb=$("rows");
+  tb.innerHTML = list.map((r,i)=>{
+    const ls=lastStage(r);
+    const dots=STAGES.map(([k,l])=>{const h=(r.tahapan?.[k]?.hasil||"").toLowerCase(); return `<span class="dot ${h}" title="${l}${h?": "+h:""}"></span>`}).join("");
+    const gaji = r.gajiMin||r.gajiMax ? `${rp(r.gajiMin)||"?"} – ${rp(r.gajiMax)||"?"}` : "";
+    const fu = r.followUp ? `<span class="${r.followUp<=today()&&ACTIVE.includes(r.status)?"chip s-proc":""}">${tgl(r.followUp)}</span>`:"";
+    return `<tr data-id="${esc(r.id)}" tabindex="0">
+      <td class="num">${i+1}</td><td class="num">${tgl(r.tanggalLamar)}</td>
+      <td><div class="main">${esc(r.perusahaan)}</div>${r.link?`<a class="small" href="${esc(r.link)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">lihat lowongan ↗</a>`:""}</td>
+      <td><div class="main">${esc(r.jabatan)}</div><div class="small">${esc(r.level||"")}</div></td>
+      <td><span class="chip ${statusClass(r.status)}">${esc(r.status||"Draft")}</span></td>
+      <td><div class="dots">${dots}</div><div class="small">${ls?esc(ls.l)+(ls.tanggal?" · "+tgl(ls.tanggal):""):""}</div></td>
+      <td>${esc(r.lokasi||"")}<div class="small">${esc(r.tipeKerja||"")}</div></td>
+      <td class="num">${gaji}</td><td class="num">${rp(r.ekspektasi)}</td>
+      <td>${esc(r.sumber||"")}</td>
+      <td>${esc(r.kontakNama||"")}<div class="small">${esc(r.kontakEmail||r.kontakTelp||"")}</div></td>
+      <td class="num">${fu}</td></tr>`;
+  }).join("");
+  const e=$("empty");
+  if(!rows.length){ e.hidden=false; e.innerHTML=`<strong>Belum ada lamaran</strong>Klik “+ Tambah lamaran” untuk mencatat lamaran pertama: perusahaan, jabatan, status, gaji, kontak HR, dan tahapan interview.`; }
+  else if(!list.length){ e.hidden=false; e.innerHTML=`<strong>Tidak ada yang cocok</strong>Ubah kata kunci atau filter.`; }
+  else e.hidden=true;
+  $("count").textContent = rows.length ? `Menampilkan ${list.length} dari ${rows.length} lamaran. Klik baris untuk mengedit.` : "";
+  if(!$("view-dash").hidden) renderDash();
+}
+$("q").oninput=render; $("f-status").onchange=render; $("f-sumber").onchange=render;
+$("rows").onclick=e=>{ const tr=e.target.closest("tr"); if(tr) openForm(tr.dataset.id); };
+$("rows").onkeydown=e=>{ if(e.key==="Enter"){ const tr=e.target.closest("tr"); if(tr) openForm(tr.dataset.id); } };
+
+// --- dashboard
+function bars(el, map){
+  const entries=Object.entries(map).filter(([,n])=>n>0).sort((a,b)=>b[1]-a[1]);
+  const max=Math.max(1,...entries.map(e=>e[1]));
+  el.innerHTML = entries.length ? entries.map(([k,n])=>`<div class="bar-row"><span class="lbl" title="${esc(k)}">${esc(k)}</span><div class="bar-track"><div class="bar-fill" style="width:${n/max*100}%"></div></div><span class="n">${n}</span></div>`).join("") : `<p class="note">Belum ada data.</p>`;
+}
+function renderDash(){
+  const total=rows.length, aktif=rows.filter(r=>ACTIVE.includes(r.status)).length;
+  const interviewed=rows.filter(r=>["hr","user","offering"].some(k=>r.tahapan?.[k]?.tanggal||r.tahapan?.[k]?.hasil)||["Interview","Offering","Diterima"].includes(r.status)).length;
+  const respon=rows.filter(r=>!["Draft","Terkirim","Tidak ada kabar"].includes(r.status||"Draft")).length;
+  const sent=rows.filter(r=>(r.status||"Draft")!=="Draft").length;
+  const offer=rows.filter(r=>["Offering","Diterima"].includes(r.status)).length;
+  const pct=(a,b)=>b?Math.round(a/b*100)+"%":"–";
+  $("kpis").innerHTML=[
+    ["Total lamaran",total,`${sent} sudah dikirim`],["Masih berjalan",aktif,"Terkirim s.d. offering"],
+    ["Tingkat respon",pct(respon,sent),`${respon} dari ${sent} dibalas`],["Sampai interview",interviewed,pct(interviewed,sent)+" dari terkirim"],
+    ["Offering / diterima",offer,pct(offer,sent)+" dari terkirim"]
+  ].map(([l,v,h])=>`<div class="kpi"><div class="label">${l}</div><div class="val">${v}</div><div class="hint">${h}</div></div>`).join("");
+  const by=(f,list)=>{const m={}; for(const v of list) if(v) m[v]=0; rows.forEach(r=>{const k=r[f]||"(kosong)"; m[k]=(m[k]||0)+1}); return m;};
+  bars($("bar-status"), by("status",STATUS.map(s=>s.v)));
+  bars($("bar-sumber"), by("sumber",[]));
+  bars($("bar-tipe"), by("tipeKerja",[]));
+  const t=today(), ag=[];
+  rows.forEach(r=>{ STAGES.forEach(([k,l])=>{const s=r.tahapan?.[k]; if(s?.tanggal&&s.tanggal>=t) ag.push([s.tanggal,`${l} — ${r.perusahaan}`,r.jabatan]);});
+    if(r.followUp&&r.followUp>=t&&ACTIVE.includes(r.status)) ag.push([r.followUp,`Follow-up — ${r.perusahaan}`,r.jabatan]); });
+  ag.sort((a,b)=>a[0].localeCompare(b[0]));
+  $("agenda").innerHTML = ag.length ? ag.slice(0,8).map(([d,a,b])=>`<li><span class="when">${tgl(d)}</span><span><strong>${esc(a)}</strong><br><span class="note">${esc(b)}</span></span></li>`).join("") : `<li style="border:0"><span class="note" style="grid-column:1/-1">Tidak ada jadwal mendatang. Isi tanggal di tahapan interview atau follow-up.</span></li>`;
+}
+
+// --- form
+function openForm(id){
+  if(!canWrite && !id) return;
+  editingId=id||null; const r=id?rows.find(x=>x.id===id):{status:"Terkirim",tanggalLamar:today()};
+  if(!r) return;
+  $("dlg-title").textContent = id?"Edit lamaran":"Tambah lamaran";
+  FIELDS.forEach(f=>{ $("i-"+f).value = r[f]??""; });
+  STAGES.forEach(([k])=>{ $(`st-${k}-tanggal`).value=r.tahapan?.[k]?.tanggal||""; $(`st-${k}-hasil`).value=r.tahapan?.[k]?.hasil||""; });
+  $("btn-del").hidden=!id||!canWrite; $("btn-del").classList.remove("armed"); $("btn-del").textContent="Hapus";
+  $("btn-save").hidden=!canWrite;
+  $("dlg").showModal();
+}
+function closeForm(){ $("dlg").close(); }
+$("btn-close").onclick=closeForm; $("btn-cancel").onclick=closeForm;
+$("btn-add").onclick=()=>openForm(null);
+const KEY="lamaran-kerja-v1";
+function uid(){ return (crypto.randomUUID?crypto.randomUUID():Date.now().toString(36)+Math.random().toString(36).slice(2)); }
+function sortRows(){ rows.sort((a,b)=>String(b.tanggalLamar||"").localeCompare(String(a.tanggalLamar||""))); }
+function persist(){ try{ localStorage.setItem(KEY,JSON.stringify(rows)); return true; }catch(e){ toast("Gagal menyimpan: penyimpanan browser diblokir atau penuh."); return false; } }
+function download(name,text,type){ const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([text],{type})); a.download=name; document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},500); }
+
+$("form").onsubmit=e=>{
+  e.preventDefault();
+  const d={};
+  FIELDS.forEach(f=>{ let v=$("i-"+f).value.trim(); if(NUMS.includes(f)){ v=v.replace(/[^\d]/g,""); d[f]=v?Number(v):null; } else d[f]=v; });
+  d.tahapan={}; STAGES.forEach(([k])=>{ d.tahapan[k]={tanggal:$(`st-${k}-tanggal`).value,hasil:$(`st-${k}-hasil`).value}; });
+  const now=Date.now();
+  if(editingId){ const i=rows.findIndex(x=>x.id===editingId); d.id=editingId; d.dibuat=rows[i]?.dibuat||now; d.diubah=now; rows[i]=d; }
+  else { d.id=uid(); d.dibuat=now; d.diubah=now; rows.push(d); }
+  sortRows();
+  if(persist()){ toast(editingId?"Perubahan disimpan":"Lamaran ditambahkan"); closeForm(); render(); }
+};
+$("btn-del").onclick=()=>{
+  const b=$("btn-del");
+  if(!b.classList.contains("armed")){ b.classList.add("armed"); b.textContent="Klik lagi untuk hapus"; return; }
+  rows=rows.filter(r=>r.id!==editingId); persist(); toast("Lamaran dihapus"); closeForm(); render();
+};
+
+// --- export / backup
+const HEAD=["No","Tanggal Lamar","Perusahaan","Jabatan","Level","Status Pengajuan","Lokasi","Tipe Kerja","Gaji Min","Gaji Maks","Ekspektasi Gaji","Sumber","Link Lowongan","Nama HR","Email HR","Telp HR",
+  ...STAGES.flatMap(([,l])=>[l+" (Tgl)",l+" (Hasil)"]),"Follow-up","Catatan"];
+function table(){
+  return [HEAD, ...filtered().map((r,i)=>[i+1,r.tanggalLamar,r.perusahaan,r.jabatan,r.level,r.status,r.lokasi,r.tipeKerja,r.gajiMin??"",r.gajiMax??"",r.ekspektasi??"",r.sumber,r.link,r.kontakNama,r.kontakEmail,r.kontakTelp,
+    ...STAGES.flatMap(([k])=>[r.tahapan?.[k]?.tanggal||"",r.tahapan?.[k]?.hasil||""]),r.followUp,r.catatan])];
+}
+$("btn-csv").onclick=()=>{
+  if(!rows.length) return toast("Belum ada data untuk diunduh.");
+  const csv="﻿"+table().map(r=>r.map(c=>{const s=String(c??""); return /[",\n;]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}).join(",")).join("\n");
+  download(`lamaran-kerja-${today()}.csv`,csv,"text/csv;charset=utf-8"); toast("CSV diunduh");
+};
+$("btn-backup").onclick=()=>{
+  download(`backup-lamaran-${today()}.json`,JSON.stringify({versi:1,diekspor:new Date().toISOString(),lamaran:rows},null,2),"application/json");
+  toast("Backup diunduh");
+};
+$("btn-restore").onclick=()=>$("file-restore").click();
+$("file-restore").onchange=async e=>{
+  const f=e.target.files[0]; e.target.value=""; if(!f) return;
+  try{
+    const j=JSON.parse(await f.text()); const list=Array.isArray(j)?j:j.lamaran;
+    if(!Array.isArray(list)) throw 0;
+    let n=0; const byId=new Map(rows.map(r=>[r.id,r]));
+    list.forEach(r=>{ if(r&&typeof r==="object"&&r.perusahaan!==undefined){ if(!r.id) r.id=uid(); byId.set(r.id,r); n++; } });
+    rows=[...byId.values()]; sortRows(); persist(); render(); toast(`${n} lamaran dipulihkan`);
+  }catch(err){ toast("File bukan backup yang valid. Pilih file backup-lamaran-....json."); }
+};
+
+// --- boot
+const SAMPLE=[
+ {id:"contoh-1",perusahaan:"PT Contoh Digital (Contoh)",jabatan:"QA Engineer",level:"Middle",status:"Interview",tanggalLamar:"2026-10-06",followUp:"2026-10-20",link:"",gajiMin:9000000,gajiMax:13000000,ekspektasi:12000000,lokasi:"Jakarta Selatan",tipeKerja:"Hybrid",sumber:"LinkedIn",kontakNama:"Rina (contoh)",kontakEmail:"hr@contoh.co.id",kontakTelp:"",catatan:"Baris contoh. Hapus setelah kamu menambahkan lamaran sendiri.",
+  tahapan:{screening:{tanggal:"2026-10-08",hasil:"Lolos"},tes:{tanggal:"2026-10-12",hasil:"Lolos"},hr:{tanggal:"2026-10-17",hasil:"Menunggu"},user:{tanggal:"",hasil:""},offering:{tanggal:"",hasil:""}}},
+ {id:"contoh-2",perusahaan:"PT Sampel Retail (Contoh)",jabatan:"Project Coordinator",level:"Junior / Staff",status:"Terkirim",tanggalLamar:"2026-10-13",followUp:"2026-10-27",link:"",gajiMin:7000000,gajiMax:9000000,ekspektasi:8500000,lokasi:"Tangerang",tipeKerja:"WFO",sumber:"JobStreet",kontakNama:"",kontakEmail:"",kontakTelp:"",catatan:"Baris contoh. Hapus setelah kamu menambahkan lamaran sendiri.",
+  tahapan:{screening:{tanggal:"",hasil:""},tes:{tanggal:"",hasil:""},hr:{tanggal:"",hasil:""},user:{tanggal:"",hasil:""},offering:{tanggal:"",hasil:""}}}
+];
+try{
+  const raw=localStorage.getItem(KEY);
+  rows = raw===null ? SAMPLE.slice() : (JSON.parse(raw)||[]);
+  if(raw===null) persist();
+}catch(e){
+  rows=[]; $("banner").hidden=false; $("banner").textContent="Browser ini memblokir penyimpanan lokal (mode incognito?). Data tidak akan tersimpan setelah halaman ditutup.";
+}
+sortRows();
+try{ if(localStorage.getItem("tab")==="dash") showTab(true); }catch(e){}
+render();
+</script>
+</body>
+</html>
